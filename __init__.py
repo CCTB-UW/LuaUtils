@@ -2,15 +2,37 @@ import difflib
 import functools
 import os
 
-from flask import current_app, url_for
+from flask import current_app, request, url_for
 
 from CTFd.cache import cache
 from CTFd.utils import _get_asset_json, get_asset_json, get_config, set_config
+from CTFd.utils.decorators import admins_only
 from CTFd.utils.helpers import markup
 
 
 def load(app):
     cache.delete_memoized(_get_asset_json)
+
+    @app.route("/admin/LuaUtils/config/<configType>", methods=["GET"])
+    @admins_only
+    def toggle_inlines(configType):
+        key = configType
+        newstate = toggle_config(key)
+        data = "disabled"
+        if newstate:
+            data = "enabled"
+
+        return {"success": True, "data": data, "id": key}
+
+    @app.route("/admin/LuaUtils/config/<configType>", methods=["POST"])
+    @admins_only
+    def set_inlines(configType):
+        key = configType
+        value = request.get_json()["value"]
+        set_config(key, value)
+        return {"success": True}
+
+
     return
 
 class _LuaAsset():
@@ -89,8 +111,9 @@ def run_as_decorator(function,*last):
                 new = function([ret] + list(*args), **kwargs)
                 return new if new else ret
             else:
-                function(*args, **kwargs)
-                return f(*args, **kwargs)
+                new = function(*args, **kwargs)
+                ret = f(*args, **kwargs)
+                return new if new else ret
         return is_owned_wrapper
     return decorator
 
